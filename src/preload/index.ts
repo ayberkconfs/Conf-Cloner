@@ -9,7 +9,14 @@ const api = {
   startClone: (data: any) => ipcRenderer.invoke('start-clone', data),
   stopClone: () => ipcRenderer.send('stop-clone'),
   checkToken: (token: string) => ipcRenderer.invoke('check-token', token),
-  onLog: (callback: any) => ipcRenderer.on('clone-log', (_event, value) => callback(value))
+  deleteWebhook: (url: string) => ipcRenderer.invoke('delete-webhook', url),
+  changeHypeSquad: (data: { token: string; houseId: number }) => ipcRenderer.invoke('change-hypesquad', data),
+  mirror: (data: any) => ipcRenderer.invoke('initiate-mirror', data),
+  // Önceki dinleyicileri temizleyip yenisini ekleyen güvenli yapı
+  onLog: (callback: any) => {
+    ipcRenderer.removeAllListeners('clone-log');
+    ipcRenderer.on('clone-log', (_event, value) => callback(value));
+  }
 }
 
 if (process.contextIsolated) {
@@ -17,11 +24,11 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
-    console.error(error)
+    console.error('Bridge Error:', error)
   }
 } else {
-  // @ts-ignore (define in dts)
+  // @ts-ignore
   window.electron = electronAPI
-  // @ts-ignore (define in dts)
+  // @ts-ignore
   window.api = api
 }

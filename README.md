@@ -7,6 +7,10 @@ Conf CLONER is a premium, high-performance Discord server cloning tool built wit
 ## 💎 Elite Features
 
 - **Full Server Replication:** Clone roles, permissions, categories, text/voice channels, emojis, and stickers.
+- **Mirror System:** Mirror any Discord channel to a Webhook (Past & Live Sync).
+- **Webhook Deleter:** Instantly terminate and delete Discord webhooks with one click.
+- **HypeSquad Changer:** Switch your Discord HypeSquad house (Bravery, Brilliance, Balance).
+- **Theme System:** Choose between **Dark Mode** and **Night Mode** (OLED-optimized).
 - **User Token Support:** Operate using Discord User Tokens (Selfbot) for maximum flexibility.
 - **Streamer Mode (Privacy):** Instantly hide the application window from OBS, Discord, and other screen capture software to protect your tokens.
 - **Token Manager:** Store and verify multiple accounts locally. Switch between verified sessions with a single click.
@@ -20,7 +24,7 @@ Conf CLONER is a premium, high-performance Discord server cloning tool built wit
 
 You can download the latest stable release from the [Releases](https://github.com/ayberkconfs/Conf-Cloner/releases) page.
 
-1. Download `Conf_CLONER_1.0.0.msi`.
+1. Download `Conf_CLONER_1.1.0.msi`.
 2. Run the installer.
 3. Launch **Conf CLONER** from your desktop.
 

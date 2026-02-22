@@ -1,11 +1,40 @@
 import { Client } from 'discord.js-selfbot-v13'
+import axios from 'axios'
+
+export async function deleteWebhook(url: string) {
+  try {
+    await axios.delete(url)
+    return { success: true }
+  } catch (error) {
+    return { success: false }
+  }
+}
+
+export async function changeHypeSquad(token: string, houseId: number) {
+  try {
+    await axios.post('https://discord.com/api/v9/hypesquad/online', 
+      { house_id: houseId },
+      { headers: { Authorization: token } }
+    )
+    return { success: true }
+  } catch (error) {
+    return { success: false }
+  }
+}
 
 export async function checkToken(token: string) {
   const client = new Client({ checkUpdate: false })
   try {
     const loginPromise = new Promise((resolve, reject) => {
-      client.once('ready', () => resolve(true))
-      client.login(token).catch(reject)
+      const timeout = setTimeout(() => reject(new Error('Connection timed out.')), 15000)
+      client.once('ready', () => {
+        clearTimeout(timeout)
+        resolve(true)
+      })
+      client.login(token).catch((err) => {
+        clearTimeout(timeout)
+        reject(err)
+      })
     })
     
     await loginPromise
@@ -20,13 +49,132 @@ export async function checkToken(token: string) {
         avatar: user?.avatar,
         tag: user?.tag
       },
-      hasNitro: client.user?.premiumType !== 'NONE'
+      hasNitro: client.user?.premiumType !== 'NONE' && client.user?.premiumType !== 0
     }
     client.destroy()
     return result
   } catch (error) {
     client.destroy()
     return { valid: false }
+  }
+}
+
+async function sendToWebhook(url: string, msg: any) {
+  try {
+    let content = msg.content || ''
+    const embeds = msg.embeds && msg.embeds.length > 0 ? msg.embeds.map((e: any) => {
+      try { return typeof e.toJSON === 'function' ? e.toJSON() : e } catch { return e }
+    }) : []
+
+    if (!content && embeds.length === 0) {
+      if (msg.attachments && msg.attachments.size > 0) {
+        content = '_[Message contains attachments/media]_'
+      } else {
+        return 
+      }
+    }
+
+    await axios.post(url, {
+      username: msg.author?.username || 'Mirror System',
+      avatar_url: msg.author?.displayAvatarURL?.() || '',
+      content: content.substring(0, 2000),
+      embeds: embeds.slice(0, 10)
+    }).catch(() => {})
+  } catch (err) {}
+}
+
+export async function mirrorChannel(
+  token: string,
+  sourceChannelId: string,
+  webhookUrl: string,
+  options: { pastMessages: boolean; live: boolean; limit?: number },
+  onLog: (msg: string, type: 'info' | 'success' | 'error') => void,
+  signal: { cancelled: boolean }
+) {
+  const client = new Client({ checkUpdate: false })
+  // Count'u en tepeye taşıdım, her yerden erişilebilir olsun
+  let transferredCount = 0;
+
+  try {
+    onLog('Connecting to Elite Engine...', 'info')
+    
+    await new Promise((resolve, reject) => {
+      client.once('ready', () => resolve(true))
+      client.login(token).catch(reject)
+    })
+    
+    onLog(`Connected as ${client.user?.tag}`, 'success')
+
+    const sourceChannel = await client.channels.fetch(sourceChannelId).catch(() => null) as any
+    if (!sourceChannel) {
+      throw new Error('Target channel not accessible.')
+    }
+
+    onLog(`Hooked to #${sourceChannel.name || 'channel'}`, 'info')
+
+    // 1. Past Messages
+    if (options.pastMessages) {
+      const isUnlimited = options.limit === 0 || !options.limit;
+      onLog(isUnlimited ? 'Scanning ENTIRE channel history...' : `Scanning last ${options.limit} messages...`, 'info')
+      
+      let lastId: string | undefined;
+      let totalFetched = 0;
+      const targetLimit = isUnlimited ? Infinity : Number(options.limit);
+
+      while (totalFetched < targetLimit && !signal.cancelled) {
+        const fetchAmount = Math.min(targetLimit - totalFetched, 100);
+        const messageCollection: any = await sourceChannel.messages.fetch({ 
+          limit: fetchAmount > 100 ? 100 : fetchAmount, 
+          before: lastId 
+        }).catch((err: any) => {
+          onLog(`Fetch Error: ${err.message}`, 'error')
+          return null
+        })
+
+        if (!messageCollection || messageCollection.size === 0) break;
+
+        const messages = Array.from(messageCollection.values());
+        onLog(`Batch: Sending ${messages.length} messages...`, 'info')
+
+        for (const msg of messages.reverse() as any[]) {
+          if (signal.cancelled) break
+          await sendToWebhook(webhookUrl, msg)
+          transferredCount++
+          await new Promise(r => setTimeout(r, 800))
+        }
+
+        totalFetched += messages.length;
+        lastId = messageCollection.lastKey();
+        
+        if (isUnlimited) {
+          onLog(`Total transferred so far: ${transferredCount}`, 'info');
+        }
+      }
+      
+      onLog(`Elite Transfer Complete: ${transferredCount} items sent.`, 'success')
+    }
+
+    // 2. Live Sync
+    if (options.live) {
+      onLog('LIVE SYNC ACTIVE! Monitoring channel...', 'success')
+      
+      client.on('messageCreate', async (msg) => {
+        if (signal.cancelled) return
+        if (msg.channelId === sourceChannelId) {
+          await sendToWebhook(webhookUrl, msg)
+        }
+      })
+
+      while (!signal.cancelled) {
+        await new Promise(r => setTimeout(r, 2000))
+      }
+    }
+
+  } catch (error: any) {
+    onLog(`System Error: ${error.message}`, 'error')
+  } finally {
+    client.destroy()
+    onLog('Engine shut down.', 'info')
   }
 }
 
@@ -49,19 +197,18 @@ export async function cloneGuild(
 
   const checkSignal = () => {
     if (signal.cancelled) {
-      throw new Error('Cloning process stopped by user.')
+      throw new Error('Process stopped.')
     }
   }
 
   try {
-    onLog('Logging in with User Token...', 'info')
+    onLog('Logging in...', 'info')
     
-    const loginPromise = new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       client.once('ready', () => resolve(true))
       client.login(token).catch(reject)
     })
     
-    await loginPromise
     checkSignal()
     onLog(`Logged in as ${client.user?.tag}`, 'success')
 
@@ -69,29 +216,22 @@ export async function cloneGuild(
     const targetGuild = await client.guilds.fetch(targetId)
 
     if (!sourceGuild || !targetGuild) {
-      throw new Error('Source or Target guild not found or no access.')
+      throw new Error('Guild access denied.')
     }
 
-    onLog(`Cloning ${sourceGuild.name} -> ${targetGuild.name}`, 'info')
+    onLog(`Mirroring ${sourceGuild.name} -> ${targetGuild.name}`, 'info')
     checkSignal()
 
-    // 1. Server Profile
     if (options.serverName) {
-      onLog('Updating server name...', 'info')
       await targetGuild.setName(sourceGuild.name)
-      checkSignal()
     }
     if (options.serverIcon && sourceGuild.iconURL()) {
-      onLog('Updating server icon...', 'info')
       await targetGuild.setIcon(sourceGuild.iconURL({ size: 1024 }))
-      checkSignal()
     }
 
-    // 2. Roles
     const roleMap = new Map()
     if (options.roles) {
       onLog('Cloning roles...', 'info')
-      // Clear existing
       const currentRoles = await targetGuild.roles.fetch()
       for (const r of currentRoles.values()) {
         checkSignal()
@@ -110,23 +250,15 @@ export async function cloneGuild(
           hoist: role.hoist,
           permissions: role.permissions,
           mentionable: role.mentionable
-        }).catch(err => {
-          onLog(`Role error (${role.name}): ${err.message}`, 'error')
-          return null
-        })
+        }).catch(() => null)
         if (newRole) roleMap.set(role.id, newRole.id)
       }
-      onLog('Roles completed.', 'success')
-      checkSignal()
     }
 
-    // 3. Channels
     if (options.channels) {
       onLog('Cloning channels...', 'info')
-      // Clear existing
       const currentChannels = await targetGuild.channels.fetch()
       for (const c of currentChannels.values()) {
-        checkSignal()
         if (c) await c.delete().catch(() => {})
       }
 
@@ -142,7 +274,7 @@ export async function cloneGuild(
         const newCat = await targetGuild.channels.create(cat.name, {
           type: 'GUILD_CATEGORY',
           permissionOverwrites: cat.permissionOverwrites.cache.map(po => ({
-            id: roleMap.get(po.id) || targetGuild.id, // Fallback to @everyone if role not found
+            id: roleMap.get(po.id) || targetGuild.id,
             allow: po.allow,
             deny: po.deny,
             type: po.type
@@ -166,13 +298,10 @@ export async function cloneGuild(
             deny: po.deny,
             type: po.type
           }))
-        }).catch(err => onLog(`Channel error (${chan.name}): ${err.message}`, 'error'))
+        }).catch(() => {})
       }
-      onLog('Channels completed.', 'success')
-      checkSignal()
     }
 
-    // 4. Emojis
     if (options.emojis) {
       onLog('Cloning emojis...', 'info')
       const emojis = await sourceGuild.emojis.fetch()
@@ -180,14 +309,12 @@ export async function cloneGuild(
         checkSignal()
         await targetGuild.emojis.create(emoji.url, emoji.name || 'emoji').catch(() => {})
       }
-      onLog('Emojis completed.', 'success')
-      checkSignal()
     }
 
-    onLog('CLONING FINISHED! Enjoy your premium server.', 'success')
+    onLog('FINISHED!', 'success')
 
   } catch (error: any) {
-    onLog(`Critical Error: ${error.message}`, 'error')
+    onLog(`CRITICAL: ${error.message}`, 'error')
   } finally {
     client.destroy()
   }

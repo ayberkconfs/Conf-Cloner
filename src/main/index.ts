@@ -1,33 +1,56 @@
 import { app, shell, BrowserWindow, ipcMain, nativeImage } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { cloneGuild, checkToken } from './cloner'
+import { cloneGuild, checkToken, mirrorChannel, deleteWebhook, changeHypeSquad } from './cloner'
+import os from 'os'
+
+// Disable GPU to avoid window rendering issues
+// app.commandLine.appendSwitch('disable-gpu')
+// app.commandLine.appendSwitch('disable-software-rasterizer')
+
+// Force a clean userData path to avoid permission issues with OneDrive/Desktop
+if (is.dev) {
+  const customUserData = join(os.tmpdir(), 'conf-cloner-dev-data')
+  app.setPath('userData', customUserData)
+}
+
+let isStreamerModeEnabled = false
 
 function createWindow(): void {
   const iconPath = join(__dirname, '../../resources/taskbar_icon.png')
   const icon = nativeImage.createFromPath(iconPath)
 
   const mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 750,
-    show: false,
+    width: 1200,
+    height: 800,
+    show: false, // Don't show until ready-to-show
     autoHideMenuBar: true,
     frame: false,
-    icon: icon, // Taskbar and Window icon
+    icon: icon, 
     transparent: false, 
     backgroundColor: '#0a0a0c',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      devTools: true // Keep DevTools enabled for F12 manual use, just don't auto-open
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-    mainWindow.setIcon(icon) // Force set the new large icon
-  })
+  // Open maximized instead of regular window
+  mainWindow.maximize()
 
-  mainWindow.on('ready-to-show', () => {
+  // Apply streamer mode if it was already enabled
+  if (isStreamerModeEnabled) {
+    mainWindow.setContentProtection(true)
+  }
+
+  // Fallback to show window if ready-to-show is too slow
+  const showTimeout = setTimeout(() => {
+    if (!mainWindow.isVisible()) mainWindow.show()
+  }, 5000)
+
+  mainWindow.once('ready-to-show', () => {
+    clearTimeout(showTimeout)
     mainWindow.show()
   })
 
@@ -36,28 +59,38 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (is.dev && devUrl) {
+    console.log(`Loading Dev URL: ${devUrl}`)
+    mainWindow.loadURL(devUrl)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    const filePath = join(__dirname, '../renderer/index.html')
+    console.log(`Loading File Path: ${filePath}`)
+    mainWindow.loadFile(filePath)
   }
 }
 
 app.whenReady().then(() => {
+  console.log('App is ready, creating window...')
   electronApp.setAppUserModelId('com.conf.cloner')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  console.log('Creating window...')
   createWindow()
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      console.log('Activating and creating window...')
+      createWindow()
+    }
   })
 })
 
 app.on('window-all-closed', () => {
+  console.log('All windows closed.')
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -82,8 +115,13 @@ ipcMain.on('window-close', () => {
 })
 
 ipcMain.on('set-streamer-mode', (_event, enabled: boolean) => {
+  isStreamerModeEnabled = enabled
   BrowserWindow.getAllWindows().forEach((win) => {
-    win.setContentProtection(enabled)
+    try {
+      win.setContentProtection(enabled)
+    } catch (e) {
+      console.error('Failed to set content protection:', e)
+    }
   })
   console.log(`Streamer Mode: ${enabled ? 'ENABLED' : 'DISABLED'}`)
 })
@@ -108,6 +146,28 @@ ipcMain.on('stop-clone', () => {
   currentCloneSignal.cancelled = true
 })
 
+ipcMain.handle('initiate-mirror', async (event, { token, channelId, webhookUrl, options }) => {
+  currentCloneSignal = { cancelled: false }
+  const webContents = event.sender
+  const log = (msg: string, type: 'info' | 'success' | 'error') => {
+    webContents.send('clone-log', { msg, type })
+  }
+  
+  try {
+    await mirrorChannel(token, channelId, webhookUrl, options, log, currentCloneSignal)
+  } catch (error: any) {
+    log(error.message, 'error')
+  }
+})
+
 ipcMain.handle('check-token', async (_event, token: string) => {
   return await checkToken(token)
+})
+
+ipcMain.handle('delete-webhook', async (_event, url: string) => {
+  return await deleteWebhook(url)
+})
+
+ipcMain.handle('change-hypesquad', async (_event, { token, houseId }) => {
+  return await changeHypeSquad(token, houseId)
 })

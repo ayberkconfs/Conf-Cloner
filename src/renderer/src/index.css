@@ -1,23 +1,51 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0a0a0c;
-  --color-primary: #5865F2;
-  --color-secondary: #eb459e;
-  --color-accent: #fee75c;
-  --color-glass: rgba(255, 255, 255, 0.05);
-  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-background: var(--bg-color);
+  --color-primary: #3b82f6;
+  --color-secondary: #64748b;
+  --color-accent: #94a3b8;
+  --color-glass: var(--glass-color);
+  --color-glass-border: var(--border-color);
+  --color-text-main: var(--text-color);
   
-  --background-image-premium-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --background-image-dark-gradient: radial-gradient(circle at top left, #1a1a2e, #0a0a0c);
+  --background-image-premium-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  --background-image-dark-gradient: var(--dark-grad);
   
-  --shadow-neon-purple: 0 0 20px rgba(118, 75, 162, 0.4);
-  --shadow-neon-blue: 0 0 20px rgba(88, 101, 242, 0.4);
+  --shadow-neon-purple: 0 0 20px rgba(59, 130, 246, 0.2);
+  --shadow-neon-blue: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+:root {
+  /* Default: Dark Mode */
+  --bg-color: #0f0f12;
+  --glass-color: rgba(24, 24, 27, 0.8);
+  --border-color: rgba(255, 255, 255, 0.05);
+  --text-color: #ffffff;
+  --dark-grad: radial-gradient(circle at top, #1e1e24, #0f0f12);
+}
+
+.theme-night {
+  --bg-color: #000000;
+  --glass-color: #050505;
+  --border-color: rgba(255, 255, 255, 0.03);
+  --text-color: #ffffff;
+  --dark-grad: none;
 }
 
 @layer base {
   body {
-    @apply bg-background text-white overflow-hidden select-none font-sans;
+    @apply bg-background text-text-main overflow-hidden select-none font-sans;
+  }
+
+  /* Hide number input spinners */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type=number] {
+    -moz-appearance: textfield;
   }
 }
 

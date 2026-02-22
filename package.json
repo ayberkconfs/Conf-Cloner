@@ -1,6 +1,6 @@
 {
   "name": "conf-cloner",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Elite Discord Server Cloner with Premium Features",
   "main": "./out/main/index.js",
   "scripts": {
@@ -20,15 +20,25 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
     "win": {
       "icon": "resources/taskbar_icon.png",
       "target": [
+        "nsis",
         "msi"
       ]
     },
-    "msi": {
-      "oneClick": false,
-      "perMachine": true
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": true
+    },
+    "asar": true,
+    "extraMetadata": {
+      "main": "out/main/index.js"
     }
   },
   "dependencies": {
@@ -36,21 +46,23 @@
     "@electron-toolkit/utils": "^4.0.0",
     "axios": "^1.13.5",
     "clsx": "^2.1.1",
+    "debug": "^4.4.3",
     "discord.js": "^14.25.1",
     "discord.js-selfbot-v13": "^3.7.1",
     "framer-motion": "^12.34.0",
     "lucide-react": "^0.564.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "tailwind-merge": "^3.4.1"
+    "tailwind-merge": "^3.4.1",
+    "werift-rtp": "^0.8.8"
   },
   "devDependencies": {
-    "electron": "^40.4.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.24",
+    "electron": "^40.4.1",
     "electron-builder": "^26.7.0",
     "electron-vite": "^5.0.0",
     "postcss": "^8.5.6",

@@ -27,6 +27,14 @@ declare global {
         user?: any; 
         hasNitro?: boolean; 
       }>
+      deleteWebhook: (url: string) => Promise<{ success: boolean }>
+      changeHypeSquad: (data: { token: string; houseId: number }) => Promise<{ success: boolean }>
+      mirror: (data: { 
+        token: string; 
+        channelId: string; 
+        webhookUrl: string; 
+        options: { pastMessages: boolean; live: boolean } 
+      }) => Promise<void>
       onLog: (callback: (log: { msg: string; type: 'info' | 'success' | 'error' }) => void) => void
     }
   }
